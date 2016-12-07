@@ -7,12 +7,12 @@ module.exports = function (homebridge) {
   Characteristic = homebridge.hap.Characteristic;
   UUIDGen = homebridge.hap.uuid;
 
-  homebridge.registerPlatform("homebridge-cmdswitch2", "cmdSwitch2", cmdSwitchPlatform, true);
+  homebridge.registerPlatform("homebridge-cmddoor", "cmdDoor", cmdSwitchPlatform, true);
 }
 
 function cmdSwitchPlatform(log, config, api) {
   this.log = log;
-  this.config = config || {"platform": "cmdSwitch2"};
+  this.config = config || {"platform": "cmdDoor"};
   this.switches = this.config.switches || [];
 
   this.accessories = {};
@@ -55,7 +55,7 @@ cmdSwitchPlatform.prototype.addAccessory = function (data) {
     accessory = new Accessory(data.name, uuid, 8);
 
     // Setup HomeKit switch service
-    accessory.addService(Service.Switch, data.name);
+    accessory.addService(Service.Door, data.name);
 
     // New accessory is always reachable
     accessory.reachable = true;
@@ -64,7 +64,7 @@ cmdSwitchPlatform.prototype.addAccessory = function (data) {
     this.setService(accessory);
 
     // Register new accessory in HomeKit
-    this.api.registerPlatformAccessories("homebridge-cmdswitch2", "cmdSwitch2", [accessory]);
+    this.api.registerPlatformAccessories("homebridge-cmddoor", "cmdDoor", [accessory]);
   }
 
   // Confirm variable type
@@ -105,15 +105,15 @@ cmdSwitchPlatform.prototype.removeAccessory = function (accessory) {
   if (accessory) {
     var name = accessory.context.name;
     this.log(name + " is removed from HomeBridge.");
-    this.api.unregisterPlatformAccessories("homebridge-cmdswitch2", "cmdSwitch2", [accessory]);
+    this.api.unregisterPlatformAccessories("homebridge-cmddoor", "cmdDoor", [accessory]);
     delete this.accessories[name];
   }
 }
 
 // Method to setup listeners for different events
 cmdSwitchPlatform.prototype.setService = function (accessory) {
-  accessory.getService(Service.Switch)
-    .getCharacteristic(Characteristic.On)
+  accessory.getService(Service.Door)
+    .getCharacteristic(Characteristic.CurrentPosition)
     .on('get', this.getPowerState.bind(this, accessory.context))
     .on('set', this.setPowerState.bind(this, accessory.context));
 
@@ -134,8 +134,8 @@ cmdSwitchPlatform.prototype.getInitState = function (accessory) {
 
   // Retrieve initial state if polling is disabled
   if (!accessory.context.polling) {
-    accessory.getService(Service.Switch)
-      .getCharacteristic(Characteristic.On)
+    accessory.getService(Service.Door)
+      .getCharacteristic(Characteristic.CurrentPosition)
       .getValue();
   }
 
@@ -173,8 +173,8 @@ cmdSwitchPlatform.prototype.statePolling = function (name) {
     // Update state if there's no error
     if (!error && state !== thisSwitch.state) {
       thisSwitch.state = state;
-      accessory.getService(Service.Switch)
-        .getCharacteristic(Characteristic.On)
+      accessory.getService(Service.Door)
+        .getCharacteristic(Characteristic.CurrentPosition)
         .getValue();
     }
   });
@@ -189,14 +189,14 @@ cmdSwitchPlatform.prototype.getPowerState = function (thisSwitch, callback) {
 
   if (thisSwitch.polling) {
     // Get state directly from cache if polling is enabled
-    this.log(thisSwitch.name + " is " + (thisSwitch.state ? "on." : "off."));
+    this.log(thisSwitch.name + " is " + thisSwitch.state + "% closed.");
     callback(null, thisSwitch.state);
   } else {
     // Check state if polling is disabled
     this.getState(thisSwitch, function (error, state) {
       // Update state if command exists
       if (thisSwitch.state_cmd) thisSwitch.state = state;
-      if (!error) self.log(thisSwitch.name + " is " + (thisSwitch.state ? "on." : "off."));
+      if (!error) self.log(thisSwitch.name + " is " + thisSwitch.state + "% closed.");
       callback(error, thisSwitch.state);
     });
   }
@@ -214,10 +214,10 @@ cmdSwitchPlatform.prototype.setPowerState = function (thisSwitch, state, callbac
   exec(cmd, function (error, stdout, stderr) {
     // Error detection
     if (error && (state !== thisSwitch.state)) {
-      self.log("Failed to turn " + (state ? "on " : "off ") + thisSwitch.name);
+      self.log("Failed to make the door " + state + "% closed"  + thisSwitch.name);
       self.log(stderr);
     } else {
-      if (cmd) self.log(thisSwitch.name + " is turned " + (state ? "on." : "off."));
+      if (cmd) self.log(thisSwitch.name + " is made " + state + "% closed");
       thisSwitch.state = state;
       error = null;
     }
@@ -225,8 +225,8 @@ cmdSwitchPlatform.prototype.setPowerState = function (thisSwitch, state, callbac
     // Restore switch after 1s if only one command exists
     if (!notCmd && !thisSwitch.state_cmd) {
       setTimeout(function () {
-        self.accessories[thisSwitch.name].getService(Service.Switch)
-          .setCharacteristic(Characteristic.On, !state);
+        self.accessories[thisSwitch.name].getService(Service.Door)
+          .setCharacteristic(Characteristic.CurrentPosition, !state);
       }, 1000);
     }
 
@@ -239,7 +239,7 @@ cmdSwitchPlatform.prototype.setPowerState = function (thisSwitch, state, callbac
   // Allow 1s to set state but otherwise assumes success
   tout = setTimeout(function () {
     tout = null;
-    self.log("Turning " + (state ? "on " : "off ") + thisSwitch.name + " took too long, assuming success." );
+    self.log("Making " + state + "% closed " + thisSwitch.name + " took too long, assuming success." );
     callback();
   }, 1000);
 }
