@@ -149,7 +149,7 @@ cmdSwitchPlatform.prototype.getState = function (thisSwitch, callback) {
 
   // Execute command to detect state
   exec(thisSwitch.state_cmd, function (error, stdout, stderr) {
-    var state = stdout ? true : false;
+    var state = stdout ? 100 : 0;
 
     // Error detection
     if (stderr) {
@@ -206,8 +206,8 @@ cmdSwitchPlatform.prototype.getPowerState = function (thisSwitch, callback) {
 cmdSwitchPlatform.prototype.setPowerState = function (thisSwitch, state, callback) {
   var self = this;
 
-  var cmd = state ? thisSwitch.on_cmd : thisSwitch.off_cmd;
-  var notCmd = state ? thisSwitch.off_cmd : thisSwitch.on_cmd;
+  var cmd = (state==100 )? thisSwitch.on_cmd : thisSwitch.off_cmd;
+  var notCmd = (state==0)? thisSwitch.off_cmd : thisSwitch.on_cmd;
   var tout = null;
 
   // Execute command to set state
